@@ -6,55 +6,49 @@
 #define CONFIG_MEDIUM 1
 #define CONFIG_HIGH 2
 
-#define FOOD_LOW_INTERVAL 2000
-#define FOOD_MEDIUM_INTERVAL 5000
-#define FOOD_HIGH_INTERVAL 10000
+#define FOOD_LOW_INTERVAL 5000
+#define FOOD_MEDIUM_INTERVAL 10000
+#define FOOD_HIGH_INTERVAL 15000
 
-const int PIN_CONFIG_BUTTON = 2;
-const int PIN_CONFIG_TIME_BUTTON = 3;
-const int PIN_CONFIG_QUANTITY_BUTTON = 4;
-const int PIN_LED = 11;
+const int PIN_CONFIG_BUTTON = 7;
+const int PIN_CONFIG_TIME_BUTTON = 2;
+const int PIN_CONFIG_QUANTITY_BUTTON = 3;
 
 int state = DISPENSER_STATE;
-int foodQuantity = FOOD_QUANTITY_LOW;
-int foodInterval = FOOD_INTERVAL_LOW;
+int foodQuantity = CONFIG_LOW;
+int foodInterval = CONFIG_LOW;
 
 unsigned long nextMealTime = FOOD_LOW_INTERVAL;
 
 void setup() {
   Serial.begin(9600);
 
-  pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_CONFIG_BUTTON, INPUT);
+  pinMode(PIN_CONFIG_TIME_BUTTON, INPUT);
+  pinMode(PIN_CONFIG_QUANTITY_BUTTON, INPUT);
 
-  attachInterrupt(digitalPinToInterrupt(PIN_CONFIG_BUTTON), changeState, RISING);
+  attachInterrupt(digitalPinToInterrupt(PIN_CONFIG_TIME_BUTTON), configInterval, RISING);
+  attachInterrupt(digitalPinToInterrupt(PIN_CONFIG_QUANTITY_BUTTON), configQuantity, RISING);
 }
+
 
 void loop() {
   if (state == DISPENSER_STATE) {
     dispenserMode();
-  } else {
-    configMode();
   }
 
-  Serial.println("foodQuantity: " + foodQuantity);
-  Serial.println("foodInterval: " + foodInterval);
-  Serial.println("nextMealTime: " + nextMealTime);
-}
-
-void configMode() {
-  if (digitalRead(PIN_CONFIG_QUANTITY_BUTTON) == HIGH) {
-    configFoodMode(foodQuantity);
+  if (digitalRead(PIN_CONFIG_BUTTON) == HIGH) {
+    changeState();
+    delay(500);
   }
-
-  if (digitalRead(PIN_CONFIG_TIME_BUTTON) == HIGH) {
-    configFoodMode(foodInterval);
-  }
-
-  delay(500);
 }
 
 void configInterval() {
+  if(state != CONFIG_STATE) {
+    Serial.println("Change to config mode to be able to change interval");
+  }
+  Serial.println("Changing interval");
+
   switch (foodInterval) {
     case CONFIG_LOW:
       foodInterval = CONFIG_MEDIUM;
@@ -72,6 +66,11 @@ void configInterval() {
 }
 
 void configQuantity() {
+  if(state != CONFIG_STATE) {
+    Serial.println("Change to config mode to be able to change quantity");
+  };
+  Serial.println("Changing quantity");
+
   switch (foodQuantity) {
     case CONFIG_LOW:
       foodQuantity = CONFIG_MEDIUM;
@@ -97,6 +96,10 @@ void dispenserMode() {
 
 void dispenser() {
   Serial.println("Meal time!");
+  Serial.print("foodQuantity: ");
+  Serial.println(foodQuantity);
+  Serial.print("foodInterval: ");
+  Serial.println(foodInterval);
 }
 
 void updateNextMealTime() {
@@ -114,5 +117,12 @@ void updateNextMealTime() {
 }
 
 void changeState() {
+  Serial.println("Change state");
   state = !state;
+
+  if(state == DISPENSER_STATE)
+    Serial.println("Entering dispenser state");
+
+  if(state == CONFIG_STATE)
+    Serial.println("Entering config state");
 }
