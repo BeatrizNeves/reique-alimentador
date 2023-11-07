@@ -66,12 +66,11 @@ void setup() {
 }
 
 void loop() {
-
   BLUE.listen();
 
-  delay(20);
+  delay(10);
   while (BLUE.isListening()) {
-    incomingByte = BLUE.read();
+    int incomingByte = BLUE.read();
 
     if (incomingByte != -1) {
       Serial.println("Configuring by bluetooth");
@@ -183,6 +182,8 @@ void dispenser() {
   Serial.print("foodInterval: ");
   Serial.println(foodInterval);
 
+  digitalWrite(PIN_LED, LOW);
+
   for (int pos = 5; pos < 90; pos++) {
     servo.write(pos);
     delay(15);
@@ -195,7 +196,6 @@ void dispenser() {
     delay(15);
   }
 
-  digitalWrite(PIN_LED, LOW);
   isMealAvailable = false;
 }
 
