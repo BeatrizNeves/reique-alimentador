@@ -14,7 +14,6 @@
 #define FOOD_HIGH_INTERVAL 20000
 
 Servo servo;
-int pos = 5;
 
 const int PIN_CONFIG_TIME_BUTTON = 2;
 const int PIN_CONFIG_QUANTITY_BUTTON = 3;
@@ -32,6 +31,7 @@ int foodQuantity = CONFIG_LOW;
 int foodInterval = CONFIG_LOW;
 
 bool isMealAvailable = false;
+bool btConfigMode = false;
 
 unsigned long nextMealTime = FOOD_LOW_INTERVAL;
 
@@ -53,13 +53,16 @@ void setup() {
   pinMode(PIN_BUZZER, OUTPUT);
 
   servo.attach(PIN_SERVO);
-  servo.write(pos);
+  servo.write(5);
+  
   tone(PIN_BUZZER, 1000, 1000);
   delay(1000);
+
   attachInterrupt(digitalPinToInterrupt(PIN_CONFIG_TIME_BUTTON), configInterval, RISING);
   attachInterrupt(digitalPinToInterrupt(PIN_CONFIG_QUANTITY_BUTTON), configQuantity, RISING);
+
   Serial.println("   ");
-  Serial.println("Setup Completo");
+  Serial.println("Setup completo");
 }
 
 void loop() {
@@ -71,52 +74,19 @@ void loop() {
     incomingByte = BLUE.read();
 
     if (incomingByte != -1) {
+      Serial.println("Configuring by bluetooth");
       delay(100);
-      if (incomingByte == 'A') {
-        foodInterval = CONFIG_LOW;
-        nextMealTime = nextMealTime + (FOOD_LOW_INTERVAL - FOOD_HIGH_INTERVAL);
-        foodQuantity = CONFIG_LOW;
+
+      int lastState = state;
+      state = CONFIG_STATE;
+
+      if(incomingByte == 'A'){
+        configInterval();
+      } else if(incomingByte == 'B') {
+        configQuantity();
       }
-      if (incomingByte == 'B') {
-        foodInterval = CONFIG_LOW;
-        nextMealTime = nextMealTime + (FOOD_LOW_INTERVAL - FOOD_HIGH_INTERVAL);
-        foodQuantity = CONFIG_MEDIUM;
-      }
-      if (incomingByte == 'C') {
-        foodInterval = CONFIG_LOW;
-        nextMealTime = nextMealTime + (FOOD_LOW_INTERVAL - FOOD_HIGH_INTERVAL);
-        foodQuantity = CONFIG_HIGH;
-      }
-      if (incomingByte == 'D') {
-        foodInterval = CONFIG_MEDIUM;
-        nextMealTime = nextMealTime + (FOOD_MEDIUM_INTERVAL - FOOD_LOW_INTERVAL);
-        foodQuantity = CONFIG_LOW;
-      }
-      if (incomingByte == 'E') {
-        foodInterval = CONFIG_MEDIUM;
-        nextMealTime = nextMealTime + (FOOD_MEDIUM_INTERVAL - FOOD_LOW_INTERVAL);
-        foodQuantity = CONFIG_MEDIUM;
-      }
-      if (incomingByte == 'F') {
-        foodInterval = CONFIG_MEDIUM;
-        nextMealTime = nextMealTime + (FOOD_MEDIUM_INTERVAL - FOOD_LOW_INTERVAL);
-        foodQuantity = CONFIG_HIGH;
-      }
-      if (incomingByte == 'G') {
-        foodInterval = CONFIG_HIGH;
-        nextMealTime = nextMealTime + (FOOD_HIGH_INTERVAL - FOOD_MEDIUM_INTERVAL);
-        foodQuantity = CONFIG_LOW;
-      }
-      if (incomingByte == 'H') {
-        foodInterval = CONFIG_HIGH;
-        nextMealTime = nextMealTime + (FOOD_HIGH_INTERVAL - FOOD_MEDIUM_INTERVAL);
-        foodQuantity = CONFIG_MEDIUM;
-      }
-      if (incomingByte == 'I') {
-        foodInterval = CONFIG_HIGH;
-        nextMealTime = nextMealTime + (FOOD_HIGH_INTERVAL - FOOD_MEDIUM_INTERVAL);
-        foodQuantity = CONFIG_HIGH;
-      }
+      
+      state = lastState;
     }
     break;
   }
@@ -136,7 +106,7 @@ void loop() {
 
 void configInterval() {
   if (state != CONFIG_STATE) {
-    Serial.println("Change to config mode to be able to change interval");
+    Serial.println("Unable to configure, change to config mode to be able to change interval");
   }
   Serial.println("Changing interval");
 
@@ -158,7 +128,7 @@ void configInterval() {
 
 void configQuantity() {
   if (state != CONFIG_STATE) {
-    Serial.println("Change to config mode to be able to change quantity");
+    Serial.println("Unable to configure, change to config mode to be able to change quantity");
   };
   Serial.println("Changing quantity");
 
@@ -190,8 +160,6 @@ void dispenserMode() {
     while (RFID.available() > 0) {
       int d = RFID.read();
       if (RDM6300.decode(d)) {
-        Serial.print("Chama função: ");
-        Serial.println(d);
         Serial.print("ID TAG: ");
         //Mostra os dados no serial monitor
         for (int i = 0; i < 5; i++) {
@@ -212,17 +180,20 @@ void dispenser() {
   Serial.print("foodInterval: ");
   Serial.println(foodInterval);
 
-  for (pos = 5; pos < 90; pos++) {
+  for (int pos = 5; pos < 90; pos++) {
     servo.write(pos);
     delay(15);
   }
+
   tone(PIN_BUZZER, 1000, foodQuantity * 500);
   digitalWrite(PIN_LED, HIGH);
   delay(foodQuantity * 500);
-  for (pos = 89; pos > 5; pos--) {
+
+  for (int pos = 89; pos > 5; pos--) {
     servo.write(pos);
     delay(15);
   }
+
   digitalWrite(PIN_LED, LOW);
   isMealAvailable = false;
 }
@@ -242,7 +213,7 @@ void updateNextMealTime() {
 }
 
 void changeState() {
-  Serial.println("Change state");
+  Serial.println("Changing state");
   state = !state;
 
   if (state == DISPENSER_STATE)
