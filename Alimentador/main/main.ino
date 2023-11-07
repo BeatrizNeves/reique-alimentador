@@ -1,22 +1,31 @@
 #include <SoftwareSerial.h>
 #include <RDM6300.h>
+#include <Servo.h>
 
 #define CONFIG_STATE 0
 #define DISPENSER_STATE 1
 
-#define CONFIG_LOW 0
-#define CONFIG_MEDIUM 1
-#define CONFIG_HIGH 2
+#define CONFIG_LOW 1
+#define CONFIG_MEDIUM 2
+#define CONFIG_HIGH 3
 
 #define FOOD_LOW_INTERVAL 10000
 #define FOOD_MEDIUM_INTERVAL 15000
 #define FOOD_HIGH_INTERVAL 20000
 
+Servo servo;
+int pos = 5;
+
 const int PIN_CONFIG_TIME_BUTTON = 2;
 const int PIN_CONFIG_QUANTITY_BUTTON = 3;
+const int PIN_BLUE_RX = 5;
+const int PIN_BLUE_TX = 6;
 const int PIN_CONFIG_BUTTON = 7;
+const int PIN_BUZZER = 8;
 const int PIN_RFID_TX = 9;
 const int PIN_RFID_RX = 10;
+const int PIN_LED = 11;
+const int PIN_SERVO = 12;
 
 int state = DISPENSER_STATE;
 int foodQuantity = CONFIG_LOW;
@@ -27,22 +36,94 @@ bool isMealAvailable = false;
 unsigned long nextMealTime = FOOD_LOW_INTERVAL;
 
 SoftwareSerial RFID(PIN_RFID_TX, PIN_RFID_RX);
+SoftwareSerial BLUE(PIN_BLUE_TX, PIN_BLUE_RX);
+
 uint8_t Payload[6];
 RDM6300 RDM6300(Payload);
 
 void setup() {
-  RFID.begin(9600);
   Serial.begin(9600);
+  RFID.begin(9600);
+  BLUE.begin(9600);
 
   pinMode(PIN_CONFIG_BUTTON, INPUT);
   pinMode(PIN_CONFIG_TIME_BUTTON, INPUT);
   pinMode(PIN_CONFIG_QUANTITY_BUTTON, INPUT);
+  pinMode(PIN_LED, OUTPUT);
+  pinMode(PIN_BUZZER, OUTPUT);
 
+  servo.attach(PIN_SERVO);
+  servo.write(pos);
+  tone(PIN_BUZZER, 1000, 1000);
+  delay(1000);
   attachInterrupt(digitalPinToInterrupt(PIN_CONFIG_TIME_BUTTON), configInterval, RISING);
   attachInterrupt(digitalPinToInterrupt(PIN_CONFIG_QUANTITY_BUTTON), configQuantity, RISING);
+  Serial.println("   ");
+  Serial.println("Setup Completo");
 }
 
 void loop() {
+
+  BLUE.listen();
+
+  delay(20);
+  while (BLUE.isListening()) {
+    incomingByte = BLUE.read();
+
+    if (incomingByte != -1) {
+      delay(100);
+      if (incomingByte == 'A') {
+        foodInterval = CONFIG_LOW;
+        nextMealTime = nextMealTime + (FOOD_LOW_INTERVAL - FOOD_HIGH_INTERVAL);
+        foodQuantity = CONFIG_LOW;
+      }
+      if (incomingByte == 'B') {
+        foodInterval = CONFIG_LOW;
+        nextMealTime = nextMealTime + (FOOD_LOW_INTERVAL - FOOD_HIGH_INTERVAL);
+        foodQuantity = CONFIG_MEDIUM;
+      }
+      if (incomingByte == 'C') {
+        foodInterval = CONFIG_LOW;
+        nextMealTime = nextMealTime + (FOOD_LOW_INTERVAL - FOOD_HIGH_INTERVAL);
+        foodQuantity = CONFIG_HIGH;
+      }
+      if (incomingByte == 'D') {
+        foodInterval = CONFIG_MEDIUM;
+        nextMealTime = nextMealTime + (FOOD_MEDIUM_INTERVAL - FOOD_LOW_INTERVAL);
+        foodQuantity = CONFIG_LOW;
+      }
+      if (incomingByte == 'E') {
+        foodInterval = CONFIG_MEDIUM;
+        nextMealTime = nextMealTime + (FOOD_MEDIUM_INTERVAL - FOOD_LOW_INTERVAL);
+        foodQuantity = CONFIG_MEDIUM;
+      }
+      if (incomingByte == 'F') {
+        foodInterval = CONFIG_MEDIUM;
+        nextMealTime = nextMealTime + (FOOD_MEDIUM_INTERVAL - FOOD_LOW_INTERVAL);
+        foodQuantity = CONFIG_HIGH;
+      }
+      if (incomingByte == 'G') {
+        foodInterval = CONFIG_HIGH;
+        nextMealTime = nextMealTime + (FOOD_HIGH_INTERVAL - FOOD_MEDIUM_INTERVAL);
+        foodQuantity = CONFIG_LOW;
+      }
+      if (incomingByte == 'H') {
+        foodInterval = CONFIG_HIGH;
+        nextMealTime = nextMealTime + (FOOD_HIGH_INTERVAL - FOOD_MEDIUM_INTERVAL);
+        foodQuantity = CONFIG_MEDIUM;
+      }
+      if (incomingByte == 'I') {
+        foodInterval = CONFIG_HIGH;
+        nextMealTime = nextMealTime + (FOOD_HIGH_INTERVAL - FOOD_MEDIUM_INTERVAL);
+        foodQuantity = CONFIG_HIGH;
+      }
+    }
+    break;
+  }
+
+  RFID.listen();
+  delay(20);
+
   if (state == DISPENSER_STATE) {
     dispenserMode();
   }
@@ -97,17 +178,27 @@ void configQuantity() {
 void dispenserMode() {
   // Verificar limite do unsigned long e ver o que acontece com o milis se tiver no limite
   unsigned long currentTime = millis();
-
   if (currentTime >= nextMealTime) {
     updateNextMealTime();
     isMealAvailable = true;
+    // Passa 0 pro Payload[0] para poder reutilizar a tag
+    Payload[0] = 0;
     Serial.println("Meal is available");
   }
 
   if (isMealAvailable) {
     while (RFID.available() > 0) {
-      uint8_t c = RFID.read();
-      if (RDM6300.decode(c)) {
+      int d = RFID.read();
+      if (RDM6300.decode(d)) {
+        Serial.print("Chama função: ");
+        Serial.println(d);
+        Serial.print("ID TAG: ");
+        //Mostra os dados no serial monitor
+        for (int i = 0; i < 5; i++) {
+          Serial.print(Payload[i], HEX);
+          Serial.print(" ");
+        }
+        Serial.println();
         dispenser();
       }
     }
@@ -121,6 +212,18 @@ void dispenser() {
   Serial.print("foodInterval: ");
   Serial.println(foodInterval);
 
+  for (pos = 5; pos < 90; pos++) {
+    servo.write(pos);
+    delay(15);
+  }
+  tone(PIN_BUZZER, 1000, foodQuantity * 500);
+  digitalWrite(PIN_LED, HIGH);
+  delay(foodQuantity * 500);
+  for (pos = 89; pos > 5; pos--) {
+    servo.write(pos);
+    delay(15);
+  }
+  digitalWrite(PIN_LED, LOW);
   isMealAvailable = false;
 }
 
