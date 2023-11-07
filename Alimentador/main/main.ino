@@ -154,6 +154,9 @@ void dispenserMode() {
     // Passa 0 pro Payload[0] para poder reutilizar a tag
     Payload[0] = 0;
     Serial.println("Meal is available");
+
+    tone(PIN_BUZZER, 1000, 500);
+    digitalWrite(PIN_LED, HIGH);
   }
 
   if (isMealAvailable) {
@@ -185,8 +188,6 @@ void dispenser() {
     delay(15);
   }
 
-  tone(PIN_BUZZER, 1000, foodQuantity * 500);
-  digitalWrite(PIN_LED, HIGH);
   delay(foodQuantity * 500);
 
   for (int pos = 89; pos > 5; pos--) {
